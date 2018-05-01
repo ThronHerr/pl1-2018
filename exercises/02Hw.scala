@@ -24,11 +24,16 @@ case class And(lhs: Exp, rhs: Exp) extends Exp
 case class Or(lhs: Exp, rhs: Exp) extends Exp
 case class Not(e: Exp) extends Exp
 case class Impl(lhs: Exp, rhs: Exp) extends Exp
+case class Nor(lhs: Exp, rhs: Exp) extends Exp
 
 def eval(e: Exp) : Boolean = e match {
   case True()     => true
   case False()    => false
-  case _          => sys.error("not yet implemented")
+  case And(l, r) => eval(l) && eval(r)
+  case Or(l, r)  => eval(l) || eval(r)
+  case Not(e)    => ! eval(e)
+  case Impl(l,r) => ! eval(l) || eval(r) // l -> r
+  case Nor(l,r)  => ! (eval(l) || eval(r)) // l nor r
 }
 
 /**
@@ -38,6 +43,13 @@ Subtasks:
       Eliminate And, Or, Not, and Impl by defining them as syntactic sugar for Nor.
 */
 
+  def desugar(e: Exp) : Exp = e match{
+  case And(l,r)  => Nor(Nor(l,l),Nor(r,r))
+  case Or(l,r)   => Nor(Nor(l,r),Nor(l,r))
+  case Not(e)    => Nor(e,e)
+  case Impl(l,r) => Nor(Nor(Nor(l,l),r),Nor(Nor(l,l),r))
+}
+  
 }
 
 
@@ -106,7 +118,7 @@ def subst(e: Exp,i: Symbol,v : Num) : Exp = e match {
   case With(x,xdef,body) => With(x,
                                 subst(xdef,i,v),
                                 if (x == i) body else subst(body,i,v))
-  case Let(defs, body) => sys.error("not yet implemented")                                   
+  case Let(defs, body) =>   Let(defs.map(x=>(x._1,subst(x._2,i,v))),body)                                   
   case LetStar(defs, body) => sys.error("not yet implemented (not mandatory)")                                   
 }
 
@@ -116,10 +128,15 @@ def eval(e: Exp) : Int = e match {
   case Add(l,r) => eval(l) + eval(r)
   case Mul(l,r) => eval(l) * eval(r)
   case With(x, xdef, body) => eval(subst(body,x,Num(eval(xdef)))) 
-  case Let(defs,body) => sys.error("not yet implemented")
+  case Let(defs,body) =>if (defs.length == 1) eval(subst(body,defs(0)._1,eval(defs(0)._2)))
+                        else eval(Let(defs.drop(1),subst(body,defs(0)._1,eval(defs(0)._2))))
   case LetStar(defs,body) => sys.error("not yet implemented (not mandatory)")
 }
- 
+
+def desugar(e: Exp) : Exp = e match{
+  case With(x,xdef,body)  => Let(List(x->xdef), body)
+}  
+  
 /**
 Bonus exercise (not mandatory)
  */
